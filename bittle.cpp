@@ -15,7 +15,8 @@ Bittle::Bittle(QWidget *parent) :
     imageLabel->setBackgroundRole(QPalette::Base);
     imageLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
     imageLabel->setScaledContents(false);
-    pixmap = new QPixmap(512, 512);
+    vpWidth = vpHeight = 256;
+    pixmap = new QPixmap(vpWidth, vpHeight);
     painter = new QPainter(pixmap);
     ui->scrollArea->setWidget(imageLabel);
 }
@@ -27,9 +28,10 @@ Bittle::~Bittle()
 
 void Bittle::on_update()
 {
-    int viewsize = (height * width / 8);
+    int maxStrips = imageFile->size() / (stride * vpHeight);
+    int vpStrips = vpWidth / (stride * 8 * vpHeight);
     ui->offsetHandleBar->setMinimum(0);
-    ui->offsetHandleBar->setMaximum((dataSize / viewsize) - 1);
+    ui->offsetHandleBar->setMaximum(maxStrips - vpStrips);
     if (imageData == NULL) {
         QMessageBox::information(this, tr("Bittle"),
                                  tr("imageData is null."));
@@ -40,8 +42,7 @@ void Bittle::on_update()
     if (lsbFirst)
         format = QImage::Format_MonoLSB;
 
-
-    QImage image = QImage(imageData + offset, width, height, width / 8, format);
+    QImage image = QImage(imageData + offset, stride, vpHeight, stride / 8, format);
     if (image.isNull()) {
         QMessageBox::information(this, tr("Bittle"),
                                  tr("Error creating image object."));
@@ -65,19 +66,19 @@ void Bittle::on_lsb_changed(int state)
 }
 void Bittle::on_width_changed(int w)
 {
-    width = w;
+    stride = w;
     on_update();
 }
 
 void Bittle::on_height_changed(int h)
 {
-    height = h;
+    vpHeight = h;
     on_update();
 }
 
 void Bittle::on_offset_changed(int o)
 {
-    offset = o * (height * width / 8);
+    offset = o * (vpHeight * stride / 8);
     on_update();
 }
 
@@ -106,8 +107,8 @@ void Bittle::on_actionOuvrir_triggered()
             return;
         }
 
-        width = 256;
-        height = 400;
+        stride = 256;
+        vpHeight = 400;
         offset = 0;
         ui->offsetHandleBar->setValue(0);
         on_update();

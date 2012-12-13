@@ -39,7 +39,10 @@ private:
     QPixmap *pixmap;
     QPainter *painter;
     int dataSize;
-    int width, height, offset;
+    int stride;
+    int vpWidth;
+    int vpHeight;
+    int offset;
     bool lsbFirst;
 };
 
