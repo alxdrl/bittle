@@ -7,6 +7,9 @@
 #include <QPainter>
 #include <QMainWindow>
 
+#define MAXWIDTH 512
+#define MAXHEIGHT 512
+
 namespace Ui {
 class Bittle;
 }
@@ -38,11 +41,11 @@ private:
     QLabel *imageLabel;
     QPixmap *pixmap;
     QPainter *painter;
-    int dataSize;
-    int stride;
-    int vpWidth;
-    int vpHeight;
-    int offset;
+    uint dataSize;
+    uint stride;
+    uint vpWidth;
+    uint vpHeight;
+    uint firstStripe;
     bool lsbFirst;
 };
 

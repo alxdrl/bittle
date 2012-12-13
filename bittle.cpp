@@ -11,11 +11,16 @@ Bittle::Bittle(QWidget *parent) :
 {
     ui->setupUi(this);
     ui->scrollArea->setBackgroundRole(QPalette::Dark);
+    ui->spinImageHeight->setMaximum(MAXHEIGHT);
+    ui->spinImageStride->setMaximum(MAXWIDTH / 8);
     imageLabel = new QLabel;
     imageLabel->setBackgroundRole(QPalette::Base);
     imageLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
     imageLabel->setScaledContents(false);
-    vpWidth = vpHeight = 256;
+    vpWidth = MAXWIDTH;
+    vpHeight = MAXHEIGHT;
+    firstStripe = 0;
+    stride = 1;
     pixmap = new QPixmap(vpWidth, vpHeight);
     painter = new QPainter(pixmap);
     ui->scrollArea->setWidget(imageLabel);
@@ -28,34 +33,61 @@ Bittle::~Bittle()
 
 void Bittle::on_update()
 {
-    int maxStrips = imageFile->size() / (stride * vpHeight);
-    int vpStrips = vpWidth / (stride * 8 * vpHeight);
+    if (imageFile == NULL) {
+        QMessageBox::information(this, tr("Bittle"),
+                                 tr("imageFile is null."));
+        return;
+    }
+
+    uint maxStrips = imageFile->size() / (stride * vpHeight);
+    uint vpStrips = vpWidth / (stride * 8 * vpHeight);
+
     ui->offsetHandleBar->setMinimum(0);
     ui->offsetHandleBar->setMaximum(maxStrips - vpStrips);
+
     if (imageData == NULL) {
         QMessageBox::information(this, tr("Bittle"),
                                  tr("imageData is null."));
         return;
     }
 
-    QImage::Format format = QImage::Format_Mono;
-    if (lsbFirst)
-        format = QImage::Format_MonoLSB;
-
-    QImage image = QImage(imageData + offset, stride, vpHeight, stride / 8, format);
-    if (image.isNull()) {
-        QMessageBox::information(this, tr("Bittle"),
-                                 tr("Error creating image object."));
-        return;
-    }
-
-    painter->eraseRect(0,0, 512, 512);
-    painter->drawImage(0, 0, image);
     if (imageLabel == NULL) {
         QMessageBox::information(this, tr("Bittle"),
                                  tr("imageLabel object is null."));
         return;
     }
+
+    uint stripeSize = stride * vpHeight;
+    uint offset = firstStripe * stripeSize;
+
+    if (offset >= imageFile->size()) {
+        QMessageBox::information(this, tr("Bittle"),
+                                 tr("offset beyond file end"));
+        return;
+    }
+
+    QImage::Format format = lsbFirst ? QImage::Format_MonoLSB : QImage::Format_Mono;
+
+    painter->eraseRect(0, 0, vpWidth, vpHeight);
+    uchar *p = imageData + firstStripe * stripeSize;
+    uchar *maxp = imageData + imageFile->size();
+    uint xoff = 0;
+    while (p < maxp && xoff <= (vpWidth - stride * 8) ) {
+        uint bytes_avail = maxp - p;
+        uint lines = vpHeight;
+        if (bytes_avail < vpHeight)
+            lines = bytes_avail;
+        QImage image = QImage(p, stride * 8, lines, stride, format);
+        if (image.isNull()) {
+            QMessageBox::information(this, tr("Bittle"),
+                                     tr("Error creating image object."));
+            return;
+        }
+        painter->drawImage(xoff, 0, image);
+        p += stride * lines;
+        xoff += stride * 8;
+    }
+
     imageLabel->setPixmap(*pixmap);
 }
 
@@ -72,13 +104,16 @@ void Bittle::on_width_changed(int w)
 
 void Bittle::on_height_changed(int h)
 {
+    uint stripeOffset = firstStripe * stride * vpHeight;
+    painter->eraseRect(0, 0, vpWidth, vpHeight);
     vpHeight = h;
+    firstStripe = stripeOffset / ( stride * vpHeight );
     on_update();
 }
 
 void Bittle::on_offset_changed(int o)
 {
-    offset = o * (vpHeight * stride / 8);
+    firstStripe = o;
     on_update();
 }
 
@@ -107,9 +142,9 @@ void Bittle::on_actionOuvrir_triggered()
             return;
         }
 
-        stride = 256;
-        vpHeight = 400;
-        offset = 0;
+        stride = 8;
+        vpHeight = MAXHEIGHT;
+        firstStripe = 0;
         ui->offsetHandleBar->setValue(0);
         on_update();
 
