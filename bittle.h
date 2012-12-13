@@ -3,6 +3,8 @@
 
 #include <QFile>
 #include <QLabel>
+#include <QPixmap>
+#include <QPainter>
 #include <QMainWindow>
 
 namespace Ui {
@@ -34,6 +36,8 @@ private:
     QFile *imageFile;
     uchar *imageData;
     QLabel *imageLabel;
+    QPixmap *pixmap;
+    QPainter *painter;
     int dataSize;
     int width, height, offset;
     bool lsbFirst;

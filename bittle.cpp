@@ -15,6 +15,8 @@ Bittle::Bittle(QWidget *parent) :
     imageLabel->setBackgroundRole(QPalette::Base);
     imageLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
     imageLabel->setScaledContents(false);
+    pixmap = new QPixmap(512, 512);
+    painter = new QPainter(pixmap);
     ui->scrollArea->setWidget(imageLabel);
 }
 
@@ -45,18 +47,15 @@ void Bittle::on_update()
                                  tr("Error creating image object."));
         return;
     }
-    QPixmap pixmap = QPixmap::fromImage(image);
-    if (pixmap.isNull()) {
-        QMessageBox::information(this, tr("Bittle"),
-                                 tr("Error creating pixmap from image."));
-        return;
-    }
+
+    painter->eraseRect(0,0, 512, 512);
+    painter->drawImage(0, 0, image);
     if (imageLabel == NULL) {
         QMessageBox::information(this, tr("Bittle"),
                                  tr("imageLabel object is null."));
         return;
     }
-    imageLabel->setPixmap(pixmap);
+    imageLabel->setPixmap(*pixmap);
 }
 
 void Bittle::on_lsb_changed(int state)
