@@ -43,9 +43,10 @@ private:
     QPainter *painter;
     uint dataSize;
     uint stride;
+    uint height;
     uint vpWidth;
     uint vpHeight;
-    uint firstStripe;
+    uint blockIndex;
     bool lsbFirst;
 };
 

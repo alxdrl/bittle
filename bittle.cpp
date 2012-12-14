@@ -19,7 +19,8 @@ Bittle::Bittle(QWidget *parent) :
     imageLabel->setScaledContents(false);
     vpWidth = MAXWIDTH;
     vpHeight = MAXHEIGHT;
-    firstStripe = 0;
+    height = MAXHEIGHT;
+    blockIndex = 0;
     stride = 1;
     pixmap = new QPixmap(vpWidth, vpHeight);
     painter = new QPainter(pixmap);
@@ -39,11 +40,12 @@ void Bittle::on_update()
         return;
     }
 
-    uint maxStrips = imageFile->size() / (stride * vpHeight);
-    uint vpStrips = vpWidth / (stride * 8 * vpHeight);
+    uint blockSize = stride * height;
+    uint maxBlocks = imageFile->size() / blockSize;
+    uint vpBlocks = vpWidth / blockSize;
 
     ui->offsetHandleBar->setMinimum(0);
-    ui->offsetHandleBar->setMaximum(maxStrips - vpStrips);
+    ui->offsetHandleBar->setMaximum(maxBlocks - vpBlocks);
 
     if (imageData == NULL) {
         QMessageBox::information(this, tr("Bittle"),
@@ -57,8 +59,7 @@ void Bittle::on_update()
         return;
     }
 
-    uint stripeSize = stride * vpHeight;
-    uint offset = firstStripe * stripeSize;
+    uint offset = blockIndex * blockSize;
 
     if (offset >= imageFile->size()) {
         QMessageBox::information(this, tr("Bittle"),
@@ -69,23 +70,28 @@ void Bittle::on_update()
     QImage::Format format = lsbFirst ? QImage::Format_MonoLSB : QImage::Format_Mono;
 
     painter->eraseRect(0, 0, vpWidth, vpHeight);
-    uchar *p = imageData + firstStripe * stripeSize;
+    uchar *p = imageData + offset;
     uchar *maxp = imageData + imageFile->size();
     uint xoff = 0;
-    while (p < maxp && xoff <= (vpWidth - stride * 8) ) {
+    uint yoff = 0;
+    while (p < maxp && height <= (vpHeight - yoff)) {
         uint bytes_avail = maxp - p;
-        uint lines = vpHeight;
-        if (bytes_avail < vpHeight)
-            lines = bytes_avail;
+        uint lines = height;
+        if (bytes_avail < height * stride)
+            lines = bytes_avail / stride;
         QImage image = QImage(p, stride * 8, lines, stride, format);
         if (image.isNull()) {
             QMessageBox::information(this, tr("Bittle"),
                                      tr("Error creating image object."));
             return;
         }
-        painter->drawImage(xoff, 0, image);
+        painter->drawImage(xoff, yoff, image);
         p += stride * lines;
         xoff += stride * 8;
+        if (xoff >= vpWidth) {
+            yoff += height;
+            xoff = 0;
+        }
     }
 
     imageLabel->setPixmap(*pixmap);
@@ -104,16 +110,16 @@ void Bittle::on_width_changed(int w)
 
 void Bittle::on_height_changed(int h)
 {
-    uint stripeOffset = firstStripe * stride * vpHeight;
+    uint blockOffset = blockIndex * (stride * height);
     painter->eraseRect(0, 0, vpWidth, vpHeight);
-    vpHeight = h;
-    firstStripe = stripeOffset / ( stride * vpHeight );
+    height = h;
+    blockIndex = blockOffset / (stride * height);
     on_update();
 }
 
 void Bittle::on_offset_changed(int o)
 {
-    firstStripe = o;
+    blockIndex = o;
     on_update();
 }
 
@@ -144,7 +150,7 @@ void Bittle::on_actionOuvrir_triggered()
 
         stride = 8;
         vpHeight = MAXHEIGHT;
-        firstStripe = 0;
+        blockIndex = 0;
         ui->offsetHandleBar->setValue(0);
         on_update();
 
