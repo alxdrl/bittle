@@ -22,9 +22,12 @@ Build
 
 The source tree is a Qt Creator project and should build out of the box.
 
-With qmake :
+With qmake under MacOs X :
 
+    #> mkdir <build dir>
+    #> cd <build dir>
     #> qmake '<path to project>/bittle.pro' -r -spec macx-g++40 CONFIG+=x86_64 CONFIG+=declarative_debug
+    #> make
 
 Implementation
 --------------
