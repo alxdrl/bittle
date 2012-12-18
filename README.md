@@ -24,7 +24,7 @@ The source tree is a Qt Creator project and should build out of the box.
 
 With qmake :
 
-#> qmake '<path to project>/bittle.pro' -r -spec macx-g++40 CONFIG+=x86_64 CONFIG+=declarative_debug
+    #> qmake '<path to project>/bittle.pro' -r -spec macx-g++40 CONFIG+=x86_64 CONFIG+=declarative_debug
 
 Implementation
 --------------
