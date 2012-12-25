@@ -26,47 +26,90 @@
 #include <QMessageBox>
 #include <QScrollArea>
 
+#define PIX_PER_BYTE 8
+#define DEFAULT_STRIDE 1
+#define DEFAULT_HEIGHT 128
+
 Bittle::Bittle(QWidget *parent) :
     QMainWindow(parent),
-    ui(new Ui::Bittle)
+    ui(new Ui::Bittle),
+	vpWidth(MAXWIDTH), vpHeight(MAXHEIGHT)
 {
     ui->setupUi(this);
-    ui->scrollArea->setBackgroundRole(QPalette::Dark);
-    ui->spinImageHeight->setMaximum(MAXHEIGHT);
-    ui->spinImageStride->setMaximum(MAXWIDTH / 8);
-    imageLabel = new QLabel;
-    imageLabel->setBackgroundRole(QPalette::Base);
-    imageLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
-    imageLabel->setScaledContents(false);
-    vpWidth = MAXWIDTH;
-    vpHeight = MAXHEIGHT;
-    height = MAXHEIGHT;
-    blockIndex = 0;
-    stride = 1;
     pixmap = new QPixmap(vpWidth, vpHeight);
     painter = new QPainter(pixmap);
-    ui->scrollArea->setWidget(imageLabel);
+	setControlDefaults();
+	setDefaults();
+}
+
+void Bittle::revcopy(uchar *dst, const uchar *src, size_t n)
+{
+    size_t i;
+    for (i=0; i < n; ++i)
+        dst[n-1-i] = src[i];
+}
+
+void Bittle::setControlDefaults()
+{
+    ui->spinImageHeight->setMinimum(1);
+    ui->spinImageHeight->setMaximum(vpHeight);
+    ui->spinImageHeight->setValue(vpHeight);
+    ui->spinImageStride->setMinimum(1);
+    ui->spinImageStride->setMaximum(vpWidth / PIX_PER_BYTE);
+    ui->spinImageStride->setValue(DEFAULT_STRIDE);
+    ui->offsetHandleBar->setMinimum(0);
+    ui->offsetHandleBar->setMaximum(0);
+    ui->offsetHandleBar->setValue(0);
+}
+
+void Bittle::setDefaults()
+{
+    blockIndex = 0;
+    height = DEFAULT_HEIGHT;
+    stride = DEFAULT_STRIDE;
+	lsbFirst = false;
 }
 
 Bittle::~Bittle()
 {
+	delete painter;
+	delete pixmap;
     delete ui;
 }
 
-void Bittle::on_update()
+uint Bittle::blockSize()
 {
-    if (imageFile == NULL) {
+	return stride * height;
+}
+
+void Bittle::updateScrollbarLimits()
+{
+	uint maxStrides = imageFile->size() / stride;
+	uint vpStrides = vpWidth * vpHeight / stride;
+    uint scrollbarMax = ( maxStrides > vpStrides) ? maxStrides - vpStrides : 0;
+    ui->offsetHandleBar->setMinimum(0);
+    ui->offsetHandleBar->setMaximum(scrollbarMax);
+} 
+
+uint Bittle::lineSize()
+{
+	return vpWidth / PIX_PER_BYTE;
+}
+
+uint Bittle::getOffset()
+{
+	uint off = blockIndex * stride;
+	ui->statusBar->showMessage(tr("Offset : 0x%1").arg(off, 8, 16, QChar('0'))); 
+	return off;
+}
+
+void Bittle::updateView()
+{
+	if (imageFile == NULL) {
         QMessageBox::information(this, tr("Bittle"),
                                  tr("imageFile is null."));
         return;
     }
-
-    uint blockSize = stride * height;
-    uint maxBlocks = imageFile->size() / blockSize;
-    uint vpBlocks = vpWidth / blockSize;
-
-    ui->offsetHandleBar->setMinimum(0);
-    ui->offsetHandleBar->setMaximum(maxBlocks - vpBlocks);
 
     if (imageData == NULL) {
         QMessageBox::information(this, tr("Bittle"),
@@ -74,17 +117,11 @@ void Bittle::on_update()
         return;
     }
 
-    if (imageLabel == NULL) {
-        QMessageBox::information(this, tr("Bittle"),
-                                 tr("imageLabel object is null."));
-        return;
-    }
-
-    uint offset = blockIndex * blockSize;
+    uint offset = getOffset();
 
     if (offset >= imageFile->size()) {
         QMessageBox::information(this, tr("Bittle"),
-                                 tr("offset beyond file end"));
+                                 tr("offset beyond file end (%1).").arg(offset));
         return;
     }
 
@@ -95,12 +132,17 @@ void Bittle::on_update()
     uchar *maxp = imageData + imageFile->size();
     uint xoff = 0;
     uint yoff = 0;
+    uchar buf[MAXWIDTH * MAXHEIGHT];
+	if ((size_t)buf % 4 != 0)
+            QMessageBox::information(this, tr("Bittle"),
+                                     tr("unaligned buffer"));
     while (p < maxp && height <= (vpHeight - yoff)) {
         uint bytes_avail = maxp - p;
         uint lines = height;
-        if (bytes_avail < height * stride)
+        if (bytes_avail < blockSize())
             lines = bytes_avail / stride;
-        QImage image = QImage(p, stride * 8, lines, stride, format);
+        memcpy(buf, p, stride * PIX_PER_BYTE * lines);
+        QImage image = QImage(buf, stride * PIX_PER_BYTE, lines, stride, format);
         if (image.isNull()) {
             QMessageBox::information(this, tr("Bittle"),
                                      tr("Error creating image object."));
@@ -108,40 +150,57 @@ void Bittle::on_update()
         }
         painter->drawImage(xoff, yoff, image);
         p += stride * lines;
-        xoff += stride * 8;
+        xoff += stride * PIX_PER_BYTE;
         if (xoff >= vpWidth) {
-            yoff += height;
+            yoff = yoff + height;
             xoff = 0;
         }
     }
 
-    imageLabel->setPixmap(*pixmap);
+    ui->imageLabel->setPixmap(*pixmap);
 }
 
 void Bittle::on_lsb_changed(int state)
 {
     lsbFirst = (state == Qt::Checked) ? true : false;
-    on_update();
+    updateView();
 }
+
 void Bittle::on_width_changed(int w)
 {
+	if (w <= 0) {
+        QMessageBox::information(this, tr("Bittle"),
+                                 tr("illegal stride value (%1).").arg(w));
+        return;
+    }
     stride = w;
-    on_update();
+	updateScrollbarLimits();
+    updateView();
 }
 
 void Bittle::on_height_changed(int h)
 {
-    uint blockOffset = blockIndex * (stride * height);
+	if (h <= 0) {
+        QMessageBox::information(this, tr("Bittle"),
+                                 tr("illegal height value (%1).").arg(h));
+        return;
+    }
     painter->eraseRect(0, 0, vpWidth, vpHeight);
     height = h;
-    blockIndex = blockOffset / (stride * height);
-    on_update();
+	updateScrollbarLimits();
+    updateView();
 }
 
 void Bittle::on_offset_changed(int o)
 {
+	if (o < 0) {
+        QMessageBox::information(this, tr("Bittle"),
+                                 tr("illegal offset value (%1).").arg(o));
+        return;
+		blockIndex = 0;
+    }
     blockIndex = o;
-    on_update();
+    updateView();
 }
 
 void Bittle::on_actionOuvrir_triggered()
@@ -169,11 +228,9 @@ void Bittle::on_actionOuvrir_triggered()
             return;
         }
 
-        stride = 8;
-        vpHeight = MAXHEIGHT;
-        blockIndex = 0;
-        ui->offsetHandleBar->setValue(0);
-        on_update();
-
+		setControlDefaults();
+		setDefaults();
+		updateScrollbarLimits();
+		updateView();
     }
 }

@@ -53,13 +53,19 @@ private slots:
     void on_actionOuvrir_triggered();
 
 private:
-        void on_update();
+    void updateScrollbarLimits();
+    void updateView();
+	void setDefaults();
+	void setControlDefaults();
+	void revcopy(uchar *dst, const uchar *src, size_t n);
+	uint getOffset();
+	uint blockSize();
+	uint lineSize();
 
 private:
     Ui::Bittle *ui;
     QFile *imageFile;
     uchar *imageData;
-    QLabel *imageLabel;
     QPixmap *pixmap;
     QPainter *painter;
     uint dataSize;
