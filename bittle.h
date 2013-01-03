@@ -30,6 +30,9 @@
 
 #define MAXWIDTH 512
 #define MAXHEIGHT 512
+#define PIX_PER_BYTE 8
+#define DEFAULT_STRIDE 1
+#define DEFAULT_HEIGHT 128
 
 namespace Ui {
 class Bittle;
@@ -42,6 +45,7 @@ class Bittle : public QMainWindow
 public:
     explicit Bittle(QWidget *parent = 0);
     ~Bittle();
+    void Bittle::resizeEvent(QResizeEvent *);
     
 public slots:
     void on_width_changed(int w);

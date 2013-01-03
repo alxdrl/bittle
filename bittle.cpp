@@ -26,10 +26,6 @@
 #include <QMessageBox>
 #include <QScrollArea>
 
-#define PIX_PER_BYTE 8
-#define DEFAULT_STRIDE 1
-#define DEFAULT_HEIGHT 128
-
 Bittle::Bittle(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::Bittle),
@@ -75,6 +71,11 @@ Bittle::~Bittle()
 	delete painter;
 	delete pixmap;
     delete ui;
+}
+
+void Bittle::resizeEvent(QResizeEvent *e)
+{
+    QMainWindow::resizeEvent(e);
 }
 
 uint Bittle::blockSize()
